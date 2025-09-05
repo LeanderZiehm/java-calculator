@@ -1,9 +1,9 @@
 // this code was written mostly by chatgpt I just setup the structure with GetMapping, RequestParam, RestController and added the space to + line and public record CalculateResponse(double result, String status) {}
 package com.leanderziehm.javacalculator;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,19 +13,16 @@ public class Calculator {
 
     @GetMapping(path = "/calculate")
     public CalculateResponse calculate(@RequestParam String formula) {
-        formula = formula.replace(" ", "+"); // convert spaces back to plus because of url encoding.
-        try {
-            double result = evaluate(formula);
-            return new CalculateResponse(result, "success");
-        } catch (Exception e) {
-            return new CalculateResponse(0, "error: " + e.getMessage());
-        }
+        formula = formula.replace(" ", "+");
+        double result = evaluate(formula);
+        return new CalculateResponse(result);
     }
 
-    public record CalculateResponse(double result, String status) {}
+    public record CalculateResponse(double result) {}
 
     // --- Method to evaluate arithmetic expressions using regex ---
     private double evaluate(String expr) {
+        try {
         expr = expr.replaceAll("\\s+", ""); // Remove whitespace
 
         // Pattern for multiplication/division first
@@ -54,5 +51,28 @@ public class Calculator {
         }
 
         return Double.parseDouble(expr);
+
+    } catch (NumberFormatException e) {
+        throw new CalculatorException("Invalid number format in formula: " + expr);
+    }
+    }
+
+
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public static class CalculatorException extends RuntimeException {
+        public CalculatorException(String message) {
+            super(message);
+        }
+    }
+
+    @RestControllerAdvice
+    public static class GlobalExceptionHandler {
+
+        @ExceptionHandler(Calculator.CalculatorException.class)
+        public ResponseEntity<ErrorResponse> handleCalculatorException(Calculator.CalculatorException ex) {
+            return new ResponseEntity<>(new ErrorResponse(ex.getMessage()), HttpStatus.BAD_REQUEST);
+        }
+
+        public record ErrorResponse(String error) {}
     }
 }
